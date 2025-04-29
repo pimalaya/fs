@@ -10,26 +10,32 @@ use crate::Io;
 /// I/O-free flow for reading files contents.
 #[derive(Debug)]
 pub struct ReadFiles {
-    state: Result<Option<HashMap<PathBuf, Vec<u8>>>, HashSet<PathBuf>>,
+    input: Option<HashSet<PathBuf>>,
 }
 
 impl ReadFiles {
     /// Reads a new flow from the given files path.
     pub fn new(paths: impl IntoIterator<Item = impl Into<PathBuf>>) -> Self {
-        let state = Err(paths.into_iter().map(Into::into).collect());
-        Self { state }
+        let input = Some(paths.into_iter().map(Into::into).collect());
+        Self { input }
     }
 
     /// Makes the flow progress.
-    pub fn next(&mut self) -> Result<HashMap<PathBuf, Vec<u8>>, Io> {
-        let Ok(contents) = &mut self.state else {
-            return Err(Io::ReadFiles(&mut self.state));
+    pub fn resume(&mut self, input: Option<Io>) -> Result<HashMap<PathBuf, Vec<u8>>, Io> {
+        let Some(input) = input else {
+            return Err(match self.input.take() {
+                Some(paths) => Io::ReadFiles(Err(paths)),
+                None => Io::UnavailableInput,
+            });
         };
 
-        let Some(contents) = contents.take() else {
-            return Err(Io::ReadFiles(&mut self.state));
+        let Io::ReadFiles(input) = input else {
+            return Err(Io::UnexpectedInput(Box::new(input)));
         };
 
-        Ok(contents)
+        match input {
+            Ok(contents) => Ok(contents),
+            Err(paths) => Err(Io::ReadFiles(Err(paths))),
+        }
     }
 }

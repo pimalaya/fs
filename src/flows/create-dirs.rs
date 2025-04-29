@@ -7,22 +7,32 @@ use crate::Io;
 /// I/O-free flow for creating directories.
 #[derive(Debug)]
 pub struct CreateDirs {
-    state: Result<(), HashSet<PathBuf>>,
+    input: Option<HashSet<PathBuf>>,
 }
 
 impl CreateDirs {
     /// Creates a new flow from the given directory paths.
     pub fn new(paths: impl IntoIterator<Item = impl Into<PathBuf>>) -> CreateDirs {
-        let state = Err(paths.into_iter().map(Into::into).collect());
-        Self { state }
+        let input = Some(paths.into_iter().map(Into::into).collect());
+        Self { input }
     }
 
     /// Makes the flow progress.
-    pub fn next(&mut self) -> Result<(), Io> {
-        if self.state.is_ok() {
-            Ok(())
-        } else {
-            Err(Io::CreateDirs(&mut self.state))
+    pub fn resume(&mut self, input: Option<Io>) -> Result<(), Io> {
+        let Some(input) = input else {
+            return Err(match self.input.take() {
+                Some(paths) => Io::CreateDirs(Err(paths)),
+                None => Io::UnavailableInput,
+            });
+        };
+
+        let Io::CreateDirs(input) = input else {
+            return Err(Io::UnexpectedInput(Box::new(input)));
+        };
+
+        match input {
+            Ok(()) => Ok(()),
+            Err(paths) => Err(Io::CreateDirs(Err(paths))),
         }
     }
 }

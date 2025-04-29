@@ -7,7 +7,7 @@ use crate::Io;
 /// I/O-free flow for creating multiple files with their contents.
 #[derive(Debug)]
 pub struct CreateFiles {
-    state: Result<(), HashMap<PathBuf, Vec<u8>>>,
+    input: Option<HashMap<PathBuf, Vec<u8>>>,
 }
 
 impl CreateFiles {
@@ -19,16 +19,26 @@ impl CreateFiles {
             .into_iter()
             .map(|(path, contents)| (path.into(), contents.into_iter().collect()))
             .collect();
-        let state = Err(contents);
-        Self { state }
+        let input = Some(contents);
+        Self { input }
     }
 
     /// Makes the flow progress.
-    pub fn next(&mut self) -> Result<(), Io> {
-        if self.state.is_ok() {
-            Ok(())
-        } else {
-            Err(Io::CreateFiles(&mut self.state))
+    pub fn resume(&mut self, input: Option<Io>) -> Result<(), Io> {
+        let Some(input) = input else {
+            return Err(match self.input.take() {
+                Some(path) => Io::CreateFiles(Err(path)),
+                None => Io::UnavailableInput,
+            });
+        };
+
+        let Io::CreateFiles(input) = input else {
+            return Err(Io::UnexpectedInput(Box::new(input)));
+        };
+
+        match input {
+            Ok(()) => Ok(()),
+            Err(path) => Err(Io::CreateFiles(Err(path))),
         }
     }
 }

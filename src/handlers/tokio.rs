@@ -83,7 +83,7 @@ pub async fn create_files(state: &mut Result<(), HashMap<PathBuf, Vec<u8>>>) -> 
     Ok(())
 }
 
-pub async fn read_dir(state: &mut Result<HashSet<PathBuf>, PathBuf>) -> io::Result<()> {
+pub async fn read_dir(state: &mut Result<Option<HashSet<PathBuf>>, PathBuf>) -> io::Result<()> {
     let Err(path) = state else {
         let kind = io::ErrorKind::InvalidInput;
         return Err(io::Error::new(kind, "missing directory path"));
@@ -96,7 +96,7 @@ pub async fn read_dir(state: &mut Result<HashSet<PathBuf>, PathBuf>) -> io::Resu
         paths.insert(entry.path());
     }
 
-    *state = Ok(paths);
+    *state = Ok(Some(paths));
     Ok(())
 }
 

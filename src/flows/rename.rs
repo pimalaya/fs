@@ -7,22 +7,32 @@ use crate::Io;
 /// I/O-free flow for renaming files or directories.
 #[derive(Debug)]
 pub struct Rename {
-    state: Result<(), (PathBuf, PathBuf)>,
+    input: Option<(PathBuf, PathBuf)>,
 }
 
 impl Rename {
     /// Reads a new flow from the given source and destination paths.
     pub fn new(from: impl Into<PathBuf>, to: impl Into<PathBuf>) -> Self {
-        let state = Err((from.into(), to.into()));
-        Self { state }
+        let input = Some((from.into(), to.into()));
+        Self { input }
     }
 
     /// Makes the flow progress.
-    pub fn next(&mut self) -> Result<(), Io> {
-        if self.state.is_ok() {
-            Ok(())
-        } else {
-            Err(Io::Rename(&mut self.state))
+    pub fn resume(&mut self, input: Option<Io>) -> Result<(), Io> {
+        let Some(input) = input else {
+            return Err(match self.input.take() {
+                Some(path) => Io::Rename(Err(path)),
+                None => Io::UnavailableInput,
+            });
+        };
+
+        let Io::Rename(input) = input else {
+            return Err(Io::UnexpectedInput(Box::new(input)));
+        };
+
+        match input {
+            Ok(()) => Ok(()),
+            Err(path) => Err(Io::Rename(Err(path))),
         }
     }
 }

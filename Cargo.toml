@@ -16,7 +16,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 all-features = true
 
 [features]
-default = ["std", "tokio"]
+default = ["std"]
 std = []
 tokio = ["dep:tokio"]
 
